@@ -552,7 +552,11 @@ const CrosschainRouterDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="flex items-center text-yellow-300 mb-4">
+            <div
+              className={`flex items-center ${
+                routerStatus === "Active" ? "text-green-300" : "text-yellow-300"
+              } mb-4`}
+            >
               <AlertCircle className="mr-2 h-5 w-5" />
               <span className="text-lg font-light">{routerStatus}</span>
             </div>
