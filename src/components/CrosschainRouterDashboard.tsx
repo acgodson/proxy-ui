@@ -100,6 +100,7 @@ const CrosschainRouterDashboard = () => {
     if (admin) {
       console.log("admin registered");
       setRouterStatus("Active");
+      checkRouterStatus(routerAddress);
     }
   }
 
@@ -201,13 +202,12 @@ const CrosschainRouterDashboard = () => {
     }
   };
 
-  const loadRouterAddress = () => {
-    const storedAddress = localStorage.getItem(
-      `routerAddress_${currentChainId}`
-    );
-    if (storedAddress) {
-      setRouterAddress(storedAddress);
-      checkRouterStatus(storedAddress);
+  const loadRouterAddress = async () => {
+    const deployed = await loadDeployedAddresses();
+    const _storedAddress = deployed.customRouter[6];
+    if (deployed.customRouter[6]) {
+      setRouterAddress(_storedAddress);
+      checkRouterStatus(_storedAddress);
     } else {
       setRouterAddress("");
       setRouterStatus("Not Deployed");
@@ -274,7 +274,8 @@ const CrosschainRouterDashboard = () => {
     }
   }
 
-  const checkRouterStatus = async (address: string) => {
+  const checkRouterStatus = async (address: string): Promise<void> => {
+    if (!account) return;
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const router = CustomRouter__factory.connect(address, provider);
     try {
@@ -322,23 +323,47 @@ const CrosschainRouterDashboard = () => {
   // }
 
   const handleFundGas = async () => {
-    if (!account || !routerAddress || !gasFeeAmount) return;
+    if (!account || !routerAddress || !tokenFeeAmount || !tokenAddress) return;
+
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const router = CustomRouter__factory.connect(routerAddress, signer);
+    const token = ERC20Mock__factory.connect(tokenAddress, signer);
+
     try {
-      // if user is not an admin register the admin befoe funding the account
+      // Check if the user is an admin, if not, register the user as an admin
       const admin = await router.routerAdmins(account);
       console.log("admin status", admin);
       if (!admin) {
-        const tx = await router.registerAdmin(account);
-        await tx.wait();
+        alert("account not a router Admin");
+        return;
       }
 
-      const depositTx = await router.depositToFeeTank(
-        ethers.utils.parseEther(gasFeeAmount)
+      // Convert the gas fee amount to the token's smallest unit
+      const amountToDeposit = ethers.utils.parseUnits(
+        tokenFeeAmount,
+        await token.decimals()
       );
 
+      // Check the current token allowance
+      const currentAllowance = await token.allowance(account, routerAddress);
+      console.log(
+        "Current allowance:",
+        ethers.utils.formatUnits(currentAllowance, await token.decimals())
+      );
+
+      // If the current allowance is less than the amount to deposit, increase the token approval
+      if (currentAllowance.lt(amountToDeposit)) {
+        console.log("Increasing token approval...");
+        const approvalTx = await token.approve(
+          routerAddress,
+          ethers.constants.MaxUint256
+        );
+        await approvalTx.wait();
+      }
+
+      // Call the deposit function with the parsed amount
+      const depositTx = await router.depositToFeeTank(amountToDeposit);
       await depositTx.wait();
 
       checkRouterStatus(routerAddress);
@@ -385,6 +410,8 @@ const CrosschainRouterDashboard = () => {
 
   const handleSubmitPrompt = async () => {
     if (!routerAddress || !prompt) return;
+
+  
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const router = CustomRouter__factory.connect(routerAddress, signer);
