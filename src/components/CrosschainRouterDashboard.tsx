@@ -24,8 +24,6 @@ import {
 } from "lucide-react";
 import {
   CustomRouter__factory,
-  Controller__factory,
-  ControllerVault__factory,
   ERC20Mock__factory,
 } from "@/lib/./ethers-contracts";
 import {
@@ -61,6 +59,7 @@ const CrosschainRouterDashboard = () => {
   const [isFunding, setIsFunding] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isGeneratingKey, setIsGeneratingKey] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
 
   const targetChainId = "14";
@@ -421,8 +420,8 @@ const CrosschainRouterDashboard = () => {
       );
 
       await tx.wait();
+      setIsProcessing(true);
       setIsGeneratingKey(false);
-
       console.log("Prompt submitted successfully!");
       console.log("Waiting for message delivery...");
       await new Promise((resolve) => setTimeout(resolve, 1000 * 15));
@@ -433,7 +432,7 @@ const CrosschainRouterDashboard = () => {
         user: account,
       });
 
-      let response = await fetch("http://localhost:3000/api/request", {
+      let response = await fetch("/api/request", {
         method: "POST",
         body: bodyContent,
         headers: { "Content-Type": "application/json" },
@@ -443,6 +442,7 @@ const CrosschainRouterDashboard = () => {
       console.log("prompt processed'", data);
       if (data && data.key) {
         setIsSubmittingReceipt(true);
+        setIsProcessing(false);
         const iKey = data.key;
         const usedTokens = 10; //hardcoded
         const receiptMsgCost = await router.quoteCrossChainMessage(14);
@@ -643,15 +643,21 @@ const CrosschainRouterDashboard = () => {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300"
-                  disabled={isGeneratingKey || isSubmittingReceipt}
+                  disabled={
+                    isGeneratingKey || isProcessing || isSubmittingReceipt
+                  }
                 />
                 <Button
                   onClick={handleSubmitPrompt}
                   className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
-                  disabled={isGeneratingKey || isSubmittingReceipt}
+                  disabled={
+                    isGeneratingKey || isProcessing || isSubmittingReceipt
+                  }
                 >
                   {isGeneratingKey ? (
                     <span className="animate-pulse">Generating Key...</span>
+                  ) : isProcessing ? (
+                    <span className="animate-pulse">Processing Request...</span>
                   ) : isSubmittingReceipt ? (
                     <span className="animate-pulse">Submitting Receipt...</span>
                   ) : (
