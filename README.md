@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+Here's a refined and structured version of your README for the ProxyAI with Wormhole frontend repository:
 
-## Getting Started
+---
 
-First, run the development server:
+# ProxyAI with Wormhole
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+This repository contains the Next.js implementation of ProxyAI, leverages Wormhole for cross-chain authorization and payments for AI services. The controller (target) chain is already deployed on [`Celo`](https://alfajores.celoscan.io/address/0x52567724E0260319652dce08671980E8Bcc08776) and the web-app router sends requests to the controller from the `Fuji` testnet.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To interact with this app, you'll need to fund your `Metamask wallet` with at least 0.1 Testnet AVAX. You can obtain free testnet AVAX from [Faucets](http://faucets.chain.link).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Step by Step Interactions
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+1. **Deploy your Custom Router**
 
-## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+2. **Top up your Wallet with Mock USDC Token**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   - Add mock [USDC](https://testnet.snowtrace.io/token/0xC96824Ee77B0905144465E5A3dd768e74025D438?chainid=43113) tokens to your account to pay for services.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+3. **Register your Wallet as your Router's Admin**
 
-## Deploy on Vercel
+   - Sign the `Register Admin` transaction to register your account as the admin for your custom router.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. **Top up Router’s USDC Tank for Request Payments**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+   - Sign the following transactions to ensure your router can pay for requests:
+     - `Approval` transaction for the router to spend your USDC.
+     - `Deposit` transaction to add USDC to the router’s balance.
+
+5. **Submit a Prompt to the GPT API**
+   - After funding your router, you can submit prompts to the GPT API by signing the following transactions:
+     - `GenerateKey` transaction to create a session key.
+     - `Submit Receipt` transaction to confirm the submission.
