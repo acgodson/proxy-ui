@@ -1,7 +1,3 @@
-Here's a refined and structured version of your README for the ProxyAI with Wormhole frontend repository:
-
----
-
 # ProxyAI with Wormhole
 
 This repository contains the Next.js implementation of ProxyAI, leverages Wormhole for cross-chain authorization and payments for AI services. The controller (target) chain is already deployed on [`Celo`](https://alfajores.celoscan.io/address/0x52567724E0260319652dce08671980E8Bcc08776) and the web-app router sends requests to the controller from the `Fuji` testnet.
