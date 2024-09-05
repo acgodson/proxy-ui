@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import {
   CustomRouter__factory,
+  Controller__factory,
+  ControllerVault__factory,
   ERC20Mock__factory,
 } from "@/lib/./ethers-contracts";
 import {
@@ -47,13 +49,19 @@ const CrosschainRouterDashboard = () => {
   const [gasFeeAmount, setGasFeeAmount] = useState("");
   const [tokenFeeAmount, setTokenFeeAmount] = useState("");
   const [tokenAmount, setTokenAmount] = useState("1000");
-  // const [selectedToken, setSelectedToken] = useState("");
 
   const [routerStatus, setRouterStatus] = useState("Not Deployed");
   const [feeTankBalance, setFeeTankBalance] = useState("0.00");
   const [userBalance, setUserBalance] = useState("0.00");
 
   const [prompt, setPrompt] = useState("");
+
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
+  const [isFunding, setIsFunding] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
+  const [isSubmittingReceipt, setIsSubmittingReceipt] = useState(false);
 
   const targetChainId = "14";
   const tokenAddress = "0xC96824Ee77B0905144465E5A3dd768e74025D438";
@@ -175,7 +183,8 @@ const CrosschainRouterDashboard = () => {
       alert("Please connect your wallet first.");
       return;
     }
-    const chain = getChain(Number(targetChainId));
+    setIsDeploying(true);
+    const chain = getChain(6);
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const factory = new CustomRouter__factory(signer);
@@ -187,7 +196,7 @@ const CrosschainRouterDashboard = () => {
         controllerAddress,
         vaultAddress,
         tokenAddress,
-        targetChainId
+        Number(targetChainId)
       );
       await router.deployed();
 
@@ -195,10 +204,11 @@ const CrosschainRouterDashboard = () => {
       deployed.customRouter[6] = router.address;
       await storeDeployedAddresses(deployed);
       setRouterAddress(router.address);
-      // localStorage.setItem(`routerAddress_${currentChainId}`, router.address);
       setRouterStatus("Deployed");
     } catch (error) {
       console.error("Error deploying router:", error);
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -305,56 +315,29 @@ const CrosschainRouterDashboard = () => {
     }
   };
 
-  // this deposit to the tank is not really eth buterc20 token, hence we have to check for allowance and rename for handlefundgas to topupTank
-
-  // Check and increase token approval if necessary
-  // const currentAllowance = await token.allowance(
-  //   sourceWallet.address,
-  //   routerSource.address
-  // );
-
-  // if (currentAllowance.lt(amount)) {
-  //   console.log("Increasing token approval...");
-  //   await token
-  //     .approve(routerSource.address, ethers.constants.MaxUint256, {
-  //       nonce: await sourceNonceManager.getNextNonce(),
-  //     })
-  //     .then(wait);
-  // }
-
   const handleFundGas = async () => {
     if (!account || !routerAddress || !tokenFeeAmount || !tokenAddress) return;
-
+    setIsFunding(true);
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const router = CustomRouter__factory.connect(routerAddress, signer);
     const token = ERC20Mock__factory.connect(tokenAddress, signer);
 
     try {
-      // Check if the user is an admin, if not, register the user as an admin
       const admin = await router.routerAdmins(account);
-      console.log("admin status", admin);
       if (!admin) {
-        alert("account not a router Admin");
+        alert("Account not a router Admin");
         return;
       }
 
-      // Convert the gas fee amount to the token's smallest unit
       const amountToDeposit = ethers.utils.parseUnits(
         tokenFeeAmount,
         await token.decimals()
       );
 
-      // Check the current token allowance
       const currentAllowance = await token.allowance(account, routerAddress);
-      console.log(
-        "Current allowance:",
-        ethers.utils.formatUnits(currentAllowance, await token.decimals())
-      );
 
-      // If the current allowance is less than the amount to deposit, increase the token approval
       if (currentAllowance.lt(amountToDeposit)) {
-        console.log("Increasing token approval...");
         const approvalTx = await token.approve(
           routerAddress,
           ethers.constants.MaxUint256
@@ -362,18 +345,20 @@ const CrosschainRouterDashboard = () => {
         await approvalTx.wait();
       }
 
-      // Call the deposit function with the parsed amount
       const depositTx = await router.depositToFeeTank(amountToDeposit);
       await depositTx.wait();
 
       checkRouterStatus(routerAddress);
     } catch (error) {
       console.error("Error funding gas:", error);
+    } finally {
+      setIsFunding(false);
     }
   };
 
-  const handleMintTokens: () => Promise<void> = async () => {
+  const handleMintTokens = async () => {
     if (!tokenAmount) return;
+    setIsMinting(true);
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const token = ERC20Mock__factory.connect(tokenAddress, signer);
@@ -384,19 +369,23 @@ const CrosschainRouterDashboard = () => {
       );
       await tx.wait();
       alert(`${tokenAmount} tokens minted successfully!`);
+      // Update user balance after minting
+      await checkUserTokenBalance();
     } catch (error) {
       console.error("Error minting tokens:", error);
+    } finally {
+      setIsMinting(false);
     }
   };
 
   const handleRegister = async () => {
     if (!account || !routerAddress) return;
+    setIsRegistering(true);
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const router = CustomRouter__factory.connect(routerAddress, signer);
     try {
       const admin = await router.routerAdmins(account);
-      console.log("admin status", admin);
       if (!admin) {
         const tx = await router.registerAdmin(account);
         await tx.wait();
@@ -405,13 +394,14 @@ const CrosschainRouterDashboard = () => {
       }
     } catch (e) {
       console.log(e);
+    } finally {
+      setIsRegistering(false);
     }
   };
 
   const handleSubmitPrompt = async () => {
     if (!routerAddress || !prompt) return;
-
-  
+    setIsGeneratingKey(true);
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const router = CustomRouter__factory.connect(routerAddress, signer);
@@ -419,19 +409,54 @@ const CrosschainRouterDashboard = () => {
       const requestHash = ethers.utils.keccak256(
         ethers.utils.toUtf8Bytes(prompt)
       );
+
       const fixedNonce = Math.floor(Math.random() * 1000000);
       const operationType = 0; // Low
-      const messageCost = await router.quoteCrossChainMessage(targetChainId);
+      const messageCost = await router.quoteCrossChainMessage(14);
       const tx = await router.generateKey(
         requestHash,
         fixedNonce,
         operationType,
-        { value: messageCost }
+        { value: messageCost, gasLimit: ethers.utils.hexlify(600000) }
       );
+
       await tx.wait();
-      alert("Prompt submitted successfully!");
+      setIsGeneratingKey(false);
+
+      console.log("Prompt submitted successfully!");
+      console.log("Waiting for message delivery...");
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 15));
+
+      let bodyContent = JSON.stringify({
+        prompt: prompt,
+        targetChain: 14,
+        user: account,
+      });
+
+      let response = await fetch("http://localhost:3000/api/request", {
+        method: "POST",
+        body: bodyContent,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      let data = await response.json();
+      console.log("prompt processed'", data);
+      if (data && data.key) {
+        setIsSubmittingReceipt(true);
+        const iKey = data.key;
+        const usedTokens = 10; //hardcoded
+        const receiptMsgCost = await router.quoteCrossChainMessage(14);
+        const tx2 = await router.submitReceipt(iKey, usedTokens, {
+          value: receiptMsgCost,
+          gasLimit: ethers.utils.hexlify(600000),
+        });
+        await tx2.wait();
+        alert(data.result);
+      }
     } catch (error) {
       console.error("Error submitting prompt:", error);
+    } finally {
+      setIsSubmittingReceipt(false);
     }
   };
 
@@ -448,9 +473,6 @@ const CrosschainRouterDashboard = () => {
             </SelectTrigger>
             <SelectContent className="bg-[#2c313c] border-white/20">
               <SelectItem value="14">Fuji Testnet</SelectItem>
-              {/* <SelectItem value="5">Goerli Testnet</SelectItem>
-              <SelectItem value="137">Polygon Mainnet</SelectItem> */}
-              {/* Add more networks as needed */}
             </SelectContent>
           </Select>
           {account && (
@@ -497,9 +519,15 @@ const CrosschainRouterDashboard = () => {
             <Button
               onClick={handleDeploy}
               className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
-              disabled={routerStatus !== "Not Deployed"}
+              disabled={routerStatus !== "Not Deployed" || isDeploying}
             >
-              <Zap className="mr-2 h-4 w-4" /> Deploy Router
+              {isDeploying ? (
+                <span className="animate-pulse">Deploying...</span>
+              ) : (
+                <>
+                  <Zap className="mr-2 h-4 w-4" /> Deploy Router
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -519,13 +547,20 @@ const CrosschainRouterDashboard = () => {
               value={Number(tokenAmount)}
               onChange={(e) => setTokenAmount(e.target.value.toString())}
               className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300"
-              disabled={true}
+              disabled={isMinting}
             />
             <Button
               onClick={handleMintTokens}
               className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
+              disabled={isMinting}
             >
-              <DollarSign className="mr-2 h-4 w-4" /> Mint Tokens
+              {isMinting ? (
+                <span className="animate-pulse">Minting...</span>
+              ) : (
+                <>
+                  <DollarSign className="mr-2 h-4 w-4" /> Mint Tokens
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -543,8 +578,15 @@ const CrosschainRouterDashboard = () => {
               <Button
                 onClick={handleRegister}
                 className="mb-3 w-full bg-blue-500/10 hover:bg-blue-500/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
+                disabled={isRegistering}
               >
-                <ArrowRight className="mr-2 h-4 w-4" /> Register Admin
+                {isRegistering ? (
+                  <span className="animate-pulse">Registering...</span>
+                ) : (
+                  <>
+                    <ArrowRight className="mr-2 h-4 w-4" /> Register Admin
+                  </>
+                )}
               </Button>
             )}
             <Input
@@ -553,14 +595,20 @@ const CrosschainRouterDashboard = () => {
               value={tokenFeeAmount}
               onChange={(e) => setTokenFeeAmount(e.target.value)}
               className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300"
-              disabled={routerStatus !== "Active"}
+              disabled={routerStatus !== "Active" || isFunding}
             />
             <Button
               onClick={handleFundGas}
               className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
-              disabled={routerStatus !== "Active"}
+              disabled={routerStatus !== "Active" || isFunding}
             >
-              <ArrowRight className="mr-2 h-4 w-4" /> Fund Router
+              {isFunding ? (
+                <span className="animate-pulse">Funding...</span>
+              ) : (
+                <>
+                  <ArrowRight className="mr-2 h-4 w-4" /> Fund Router
+                </>
+              )}
             </Button>
             {routerStatus === "Active" && (
               <p className="mt-4 text-sm">
@@ -591,107 +639,29 @@ const CrosschainRouterDashboard = () => {
               <>
                 <Input
                   type="text"
-                  placeholder="Enter a prompt for GPT"
+                  placeholder="Enter a greetings prompt for GPT"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300"
+                  disabled={isGeneratingKey || isSubmittingReceipt}
                 />
                 <Button
                   onClick={handleSubmitPrompt}
                   className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
+                  disabled={isGeneratingKey || isSubmittingReceipt}
                 >
-                  Submit Prompt
+                  {isGeneratingKey ? (
+                    <span className="animate-pulse">Generating Key...</span>
+                  ) : isSubmittingReceipt ? (
+                    <span className="animate-pulse">Submitting Receipt...</span>
+                  ) : (
+                    "Submit Prompt"
+                  )}
                 </Button>
               </>
             )}
           </CardContent>
         </Card>
-
-        {/* {[
-          {
-            title: "Deploy Router",
-            icon: Zap,
-            action: handleDeploy,
-            input: routerAddress,
-            setInput: setRouterAddress,
-            placeholder: "Router Address",
-          },
-          {
-            title: "Fund Gas",
-            icon: ArrowRight,
-            action: handleFundGas,
-            input: gasFeeAmount,
-            setInput: setGasFeeAmount,
-            placeholder: "Gas Fee Amount",
-            inputType: "number",
-          },
-          {
-            title: "Fund Tokens",
-            icon: DollarSign,
-            action: handleFundTokens,
-            input: tokenAmount,
-            setInput: setTokenAmount,
-            placeholder: "Token Amount",
-            inputType: "number",
-            hasSelect: true,
-          },
-          { title: "Router Status", icon: AlertCircle, status: true },
-        ].map((item, index) => (
-          <Card
-            key={index}
-            className="bg-white/5 backdrop-blur-md border-0 shadow-lg rounded-xl overflow-hidden"
-          >
-            <CardHeader className="bg-white/5">
-              <CardTitle className="text-xl font-light flex items-center">
-                <item.icon className="mr-2 h-5 w-5" />
-                {item.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              {item.status ? (
-                <div className="flex items-center text-yellow-300">
-                  <AlertCircle className="mr-2 h-5 w-5" />
-                  <span className="text-lg font-light">
-                    Router not deployed
-                  </span>
-                </div>
-              ) : (
-                <>
-                  {item.input !== undefined && (
-                    <Input
-                      type={item.inputType || "text"}
-                      placeholder={item.placeholder}
-                      value={item.input}
-                      onChange={(e) => item.setInput(e.target.value)}
-                      className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300"
-                    />
-                  )}
-                  {item.hasSelect && (
-                    <Select
-                      value={selectedToken}
-                      onValueChange={setSelectedToken}
-                    >
-                      <SelectTrigger className="mb-4 bg-white/10 border-white/20 focus:border-white/30 rounded-lg transition-all duration-300">
-                        <SelectValue placeholder="Select Token" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#2c313c] border-white/20">
-                        <SelectItem value="ETH">ETH</SelectItem>
-                        <SelectItem value="USDC">USDC</SelectItem>
-                        <SelectItem value="DAI">DAI</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <Button
-                    onClick={item.action}
-                    className="w-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm rounded-lg py-2 flex items-center justify-center transition-all duration-300"
-                  >
-                    <item.icon className="mr-2 h-4 w-4" /> {item.title}
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ))} */}
       </div>
     </div>
   );

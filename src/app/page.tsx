@@ -1,11 +1,12 @@
 import type { NextPage } from "next";
+import LoadingWrapper from "../components/LoadingWrapper";
 import CrosschainRouterDashboard from "../components/CrosschainRouterDashboard";
 
 const Home: NextPage = () => {
   return (
-    <div>
+    <LoadingWrapper>
       <CrosschainRouterDashboard />
-    </div>
+    </LoadingWrapper>
   );
 };
 
